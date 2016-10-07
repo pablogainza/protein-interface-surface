@@ -22,7 +22,7 @@ colorDict = {'sky': [COLOR, 0.0, 0.76, 1.0 ],
              'black': [COLOR, 0.0, 0.0, 0.0],
              'gray': [COLOR, 0.9, 0.9, 0.9] }
 
-def msms(fileroot, name='msms', dotSize=0.2, lineSize = 1):
+def msms(fileroot, color="green", name='msms', dotSize=0.2, lineSize = 1):
   vertfilename = fileroot+".vert"
   facefilename = fileroot+".face"
   # Read vertices first
@@ -36,7 +36,7 @@ def msms(fileroot, name='msms', dotSize=0.2, lineSize = 1):
     # Line is formatted: i x y z n1 n2 n3 x x x name
     xyz = fields[1:4]
     normals = fields [4:7]
-    name = [fields[10]]
+    name = [fields[-1]]
     verts[fields[0]] = xyz+normals+name
   # Read faces (triangles)
   facefile = open(fileroot+".face")
@@ -50,12 +50,11 @@ def msms(fileroot, name='msms', dotSize=0.2, lineSize = 1):
   for vertkey in verts:
     vert = verts[vertkey]
     name = vert[-1]
-    color = "green"
-    if "Blue" in name:
-      color = "blue"
-    if "Red" in name:
-      color = "red"
     colorToAdd = colorDict[color]
+    if "Blue" in name:
+      colorToAdd = colorDict["blue"]
+    if "Red" in name:
+      colorToAdd = colorDict["red"]
     # Vertices
     obj.extend(colorToAdd)
     obj.extend([SPHERE, float(vert[0]), float(vert[1]), float(vert[2]), dotSize])
@@ -69,8 +68,7 @@ def msms(fileroot, name='msms', dotSize=0.2, lineSize = 1):
     obj.append(END)
   cmd.load_cgo(obj,"vert_"+fileroot, 1.0)
   obj =[]
-  color = 'gray'
-  colorToAdd = colorDict[color]
+  colorToAdd = colorDict['gray']
   # Draw triangles (faces)
   for tri in faces: 
     pairs = [[tri[0],tri[1]], [tri[0],tri[2]], [tri[1],tri[2]]]
