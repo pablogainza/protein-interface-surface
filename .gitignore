@@ -1,0 +1,5 @@
+*.pyc
+output/
+tmp/
+.DS_Store
+input/sources/
