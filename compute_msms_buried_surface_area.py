@@ -1,4 +1,5 @@
 #!/usr/local/bin/python
+# Pablo Gainza 2016-2017. LPDI IBI STI EPFL
 import sys
 import pdb
 import os
@@ -8,22 +9,61 @@ from utils.xyzrn import *
 from config import env
 from sets import Set
 from Bio.PDB import * 
+import numpy as np
+from glob import glob
+from scipy.spatial import distance
 
-# Pablo Gainza 2016-2017. LPDI IBI STI EPFL
-if len(sys.argv) > 3:
+def get_connected_components(cur_vertex, disconnected_components, graph):
+  my_connected_components = set()
+  my_connected_components.add(cur_vertex)
+  neighbors = graph[cur_vertex]
+  for n in neighbors:
+    my_connected_components.add(n)
+    if n in disconnected_components:
+      disconnected_components.discard(n)
+      new_set = get_connected_components(n, disconnected_components, graph)
+      my_connected_components = my_connected_components.union(new_set)
+  return my_connected_components
+
+## Area of a triangle from its sides
+def tri_area(a, b, c):
+  s = (a + b + c) / 2
+  area = (s*(s-a)*(s-b)*(s-c)) ** 0.5
+  return area
+
+def get_area_triangle_set(triangles, vertices):
+  total_area = 0
+  for tri in triangles:
+    p0 = vertices[tri[0]]
+    p1 = vertices[tri[1]]
+    p2 = vertices[tri[2]]
+    a = distance.euclidean(p0, p1)
+    b = distance.euclidean(p1, p2)
+    c = distance.euclidean(p2, p0)
+    total_area += tri_area(a,b,c)
+  return total_area
+
+allPDB_files = list(sys.argv[1:])
+if len(allPDB_files) < 2:
   print "Compute and output the interface surfaces of a set of PDB chains."
   print "Currently this program receives each chain for a PDB as a separate input."
+  print "It is assumed that all chains belong to the same PDB file with the same PDB id."
   print "Usage: "+sys.argv[0]+" {chain1} {chain2} [chain3]... "
   sys.exit(1)
-pdbID = sys.argv[1][1:4]
-full_input_filename = sys.argv[1].split("/")[-1]
+
+# The name of the PDB is taken only from the first file. 
+full_input_filename = allPDB_files[0].split("/")[-1]
 basename = full_input_filename[0:4]
 complex_file = env.tmpDirectory+basename+"_complex.pdb"
 
-mergePDBs(sys.argv[1:4], complex_file)
+## output directory 
+hierarchOutputDirectory = env.outputDirectory+"/"+(basename[1:3]).lower()+"/"+basename+"/"
+if not os.path.exists(hierarchOutputDirectory):
+  os.makedirs(hierarchOutputDirectory)
+
+mergePDBs(allPDB_files, complex_file)
 
 # Now go through every PDB file and generate an xyzrn file. 
-allPDB_files = list(sys.argv[1:4])
 allPDB_files.append(complex_file)
 
 filename_roots = []
@@ -34,9 +74,9 @@ for pdbfile in allPDB_files:
   output_pdb_as_xyzrn(pdbfile, xyzrn_filename_template.format(basename+chain))
 
 # Now run MSMS for every xyzrn file
-for root in filename_roots:
+for filename_root in filename_roots:
   FNULL = open(os.devnull, 'w')
-  full_filename = xyzrn_filename_template.format(root)
+  full_filename = xyzrn_filename_template.format(filename_root)
   args= [env.msms_bin, "-if",full_filename,"-of",full_filename, "-af", full_filename]
   print env.msms_bin+" "+`args`
   p2 = Popen(args, stdout=PIPE, stderr=PIPE)
@@ -59,8 +99,8 @@ for line in bound_ses_file:
 
 # Now read each of the unbound files and output interface and triangulation files for 
 # each unbound file.
-for root in filename_roots[0:-1]:
-  chain_ses_file = open(area_filename_template.format(root))
+for filename_root in filename_roots[0:-1]:
+  chain_ses_file = open(area_filename_template.format(filename_root))
   next(chain_ses_file) # ignore header
   iface_atoms = Set()
   for line in chain_ses_file:
@@ -72,7 +112,7 @@ for root in filename_roots[0:-1]:
       iface_atoms.add(atomName)
   # Now we will create new output files for the vertices and triangulations
   # But first we need to read in the vertices
-  vert_filename = env.tmpDirectory+"{}.xyzrn.vert".format(root)
+  vert_filename = env.tmpDirectory+"{}.xyzrn.vert".format(filename_root)
   vert_file = open(vert_filename)
   # Ignore first three lines
   next(vert_file)
@@ -92,7 +132,7 @@ for root in filename_roots[0:-1]:
     ix_counter += 1
 
   # Now read the lines that correspond to the face triangles.
-  face_filename = env.tmpDirectory+"{}.xyzrn.face".format(root)
+  face_filename = env.tmpDirectory+"{}.xyzrn.face".format(filename_root)
   face_file = open(face_filename)
   # Ignore first three lines
   next(face_file)
@@ -119,9 +159,10 @@ for root in filename_roots[0:-1]:
       map_from_old_to_new[old_vertex_ix] = new_vertex_ix
       map_from_new_to_old[new_vertex_ix] = old_vertex_ix
       new_vertex_ix += 1
+  count_vertices_in_full_interface = new_vertex_ix
   # We now have the all the new indices and a map between them
   # Create the new vertices
-  out_file_vertices = open(env.outputDirectory+root+".vert", 'w')
+  out_file_vertices = open(hierarchOutputDirectory+filename_root+".vert", 'w')
   for vertex_ix in range(1,new_vertex_ix):
     new_vertex = [`vertex_ix`]+old_vertices[map_from_new_to_old[vertex_ix]]
     out_file_vertices.write(' '.join(new_vertex)+'\n')
@@ -133,7 +174,70 @@ for root in filename_roots[0:-1]:
       new_tri = tuple(map(lambda v: map_from_old_to_new[v], old_tri))
       tris_new_ix_set.add(new_tri)
   # Finally, write the new triangles to the output file.
-  out_file_face = open(env.outputDirectory+root+".face", 'w')
+  out_file_face = open(hierarchOutputDirectory+filename_root+".face", 'w')
   for tri in tris_new_ix_set:
     out_file_face.write(' '.join(str(x) for x in tri)+'\n')
+    
+  ####### Separate the vertices into sets of connected components
+  # We use the information in the triangulation.
+  # First convert the triangulation into a graph. 
+  graph = {}
+  for tri in tris_new_ix_set: 
+    x, y, z = tri
+    if x not in graph:
+      graph[x] = set()
+    graph[x].add(y)
+    graph[x].add(z)
+    if y not in graph:
+      graph[y] = set()
+    graph[y].add(x)
+    graph[y].add(z)
+    if z not in graph:
+      graph[z] = set()
+    graph[z].add(x)
+    graph[z].add(y)
+
+  # Find the connected components. 
+  # Add all elements to disconnected components. 
+  disconnected_components = set()
+  for v in graph.keys():
+    disconnected_components.add(v)
+  forest = []
+  # Go through the disconnected components until they all belong to a tree. 
+  tree_count = 0
+  while len(disconnected_components) > 0: 
+    # Remove first element.
+    rootv = disconnected_components.pop()
+    new_tree = get_connected_components(rootv, disconnected_components, graph)
+    # Create a vertex list for this tree. 
+    vertex_coords = {}
+    for vertex_ix in new_tree: 
+      vertex_coords[vertex_ix] = (float(old_vertices[map_from_new_to_old[vertex_ix]][0]),
+                                  float(old_vertices[map_from_new_to_old[vertex_ix]][1]),
+                                  float(old_vertices[map_from_new_to_old[vertex_ix]][2]))
+    # Find the triangles that correspond to this connected component.
+    triangles_for_this_component = set()
+    for triangle in tris_new_ix_set:
+      x, y, z = triangle
+      if x in new_tree or y in new_tree or z in new_tree: 
+        triangles_for_this_component.add(triangle)
+    area = get_area_triangle_set(triangles_for_this_component, vertex_coords)
+
+    if area > env.minimum_ppi_area:
+      print "Area of this interface (Angs^2): " + `area`
+      # Write a vert file and a face file for the interface in this tree
+      # Create the new vertices
+      output_vertfilename = "{}{}{:02d}.vert".format(hierarchOutputDirectory,filename_root,tree_count)
+      out_file_vertices = open(output_vertfilename, 'w')
+      sorted_tree = sorted(new_tree)
+      for vertex_ix in sorted_tree:
+        new_vertex = [`vertex_ix`]+old_vertices[map_from_new_to_old[vertex_ix]]
+        out_file_vertices.write(' '.join(new_vertex)+'\n')
+      # Now write out the faces. 
+      output_facefilename = "{}{}{:02d}.face".format(hierarchOutputDirectory,filename_root,tree_count)
+      out_file_face = open(output_facefilename, 'w')
+      for tri in triangles_for_this_component:
+        outline = "{:d} {:d} {:d}".format(tri[0],tri[1],tri[2])
+        out_file_face.write(outline+'\n')
+      tree_count += 1
 

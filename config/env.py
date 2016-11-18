@@ -10,4 +10,6 @@ else:
 # epsilon_area_change: for an atom to be considered an interface atom, its SES must change 
 #       this much between bound and unbound.
 epsilon_area_change = 0.01 
-
+# minimum_ppi_area: Any interface that has a size less than minimum_ppi_area will be 
+#       discarded: it is too small to be relevant.
+minimum_ppi_area = 100

@@ -8,6 +8,7 @@ import string
 from pymol.cgo import *
 import Queue
 import threading
+import os.path
 
 colorDict = {'sky': [COLOR, 0.0, 0.76, 1.0 ],
              'sea': [COLOR, 0.0, 0.90, 0.5 ],
@@ -39,12 +40,16 @@ def msms(fileroot, color="green", name='msms', dotSize=0.2, lineSize = 1):
     name = [fields[-1]]
     verts[fields[0]] = xyz+normals+name
   # Read faces (triangles)
-  facefile = open(fileroot+".face")
-  facedata = (facefile.read().rstrip()).split('\n')
-  facefile.close()
+  face_file_exists = False
+  if os.path.isfile(fileroot+".face"):
+    face_file_exists = True
   faces = []
-  for line in facedata:
-    faces.append(line.split())
+  if face_file_exists:
+    facefile = open(fileroot+".face")
+    facedata = (facefile.read().rstrip()).split('\n')
+    facefile.close()
+    for line in facedata:
+      faces.append(line.split())
   # Draw vertices and normals
   obj = []
   for vertkey in verts:
@@ -70,25 +75,15 @@ def msms(fileroot, color="green", name='msms', dotSize=0.2, lineSize = 1):
   obj =[]
   colorToAdd = colorDict['gray']
   # Draw triangles (faces)
-  for tri in faces: 
-    pairs = [[tri[0],tri[1]], [tri[0],tri[2]], [tri[1],tri[2]]]
-    for pair in pairs: 
-      vert1 = verts[pair[0]]
-      vert2 = verts[pair[1]]
-      obj.extend([BEGIN, LINES])
-      obj.extend(colorToAdd)
-      obj.extend([VERTEX, float(vert1[0]), float(vert1[1]), float(vert1[2])])
-      obj.extend([VERTEX, float(vert2[0]), float(vert2[1]), float(vert2[2])])
-      obj.append(END)
-  cmd.load_cgo(obj,"mesh_"+fileroot, 1.0)
-
-    
-
-
-
-
-
-
-
-
-
+  if face_file_exists:
+    for tri in faces: 
+      pairs = [[tri[0],tri[1]], [tri[0],tri[2]], [tri[1],tri[2]]]
+      for pair in pairs: 
+        vert1 = verts[pair[0]]
+        vert2 = verts[pair[1]]
+        obj.extend([BEGIN, LINES])
+        obj.extend(colorToAdd)
+        obj.extend([VERTEX, float(vert1[0]), float(vert1[1]), float(vert1[2])])
+        obj.extend([VERTEX, float(vert2[0]), float(vert2[1]), float(vert2[2])])
+        obj.append(END)
+    cmd.load_cgo(obj,"mesh_"+fileroot, 1.0)
