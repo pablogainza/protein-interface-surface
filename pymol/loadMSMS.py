@@ -1,5 +1,5 @@
 # Pablo Gainza Cirauqui 2016 
-# Some of this code was taken from Kyle Roberts' and Bruce Donald's ProteinInteractionViewer
+# This pymol function loads msms files into pymol. 
 from pymol import cmd
 import sys, urllib, zlib
 import subprocess
@@ -87,3 +87,23 @@ def msms(fileroot, color="green", name='msms', dotSize=0.2, lineSize = 1):
         obj.extend([VERTEX, float(vert2[0]), float(vert2[1]), float(vert2[2])])
         obj.append(END)
     cmd.load_cgo(obj,"mesh_"+fileroot, 1.0)
+
+def myfunc(resi,resn,name):
+  print '%s`%s/%s' % (resn ,resi, name)
+def get_obj_name(model):
+  return cmd.get_names("objects", 1, "sele")
+
+def msms_surface(selection, file_name="default.vert"):
+  myspace={'myfunc':myfunc}
+  full_object_name = cmd.get_names("objects", 1, "sele")[0]
+  cmd.save(full_object_name, full_object_name)
+  msms_bin = os.environ['MSMS_BIN']
+  args= [env.msms_bin, "-if",full_object_name,"-of",full_object_name, "-af", full_object_name]
+  p2 = Popen(args, stdout=PIPE, stderr=PIPE)
+  stdout, stderr = p2.communicate()
+
+  print stdout
+  print stderr
+  cmd.iterate(selection,'myfunc(resi,resn,name)', space=myspace)
+  
+  

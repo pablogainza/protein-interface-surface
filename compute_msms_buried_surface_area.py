@@ -13,16 +13,23 @@ import numpy as np
 from glob import glob
 from scipy.spatial import distance
 
+# Recursive function to find all connected components in a surface (to separate interfaces). 
+#   In order to keep the stack small, the tree works breadth-first
 def get_connected_components(cur_vertex, disconnected_components, graph):
   my_connected_components = set()
   my_connected_components.add(cur_vertex)
   neighbors = graph[cur_vertex]
+  # Breadth first search tree
+  neighbors_to_visit = set()
   for n in neighbors:
     my_connected_components.add(n)
     if n in disconnected_components:
       disconnected_components.discard(n)
-      new_set = get_connected_components(n, disconnected_components, graph)
-      my_connected_components = my_connected_components.union(new_set)
+      neighbors_to_visit.add(n)
+  # Once all neighbors have been added, we go down the tree
+  for n in neighbors_to_visit:
+    new_set = get_connected_components(n, disconnected_components, graph)
+    my_connected_components = my_connected_components.union(new_set)
   return my_connected_components
 
 ## Area of a triangle from its sides
@@ -108,7 +115,7 @@ for filename_root in filename_roots[0:-1]:
     atomName = fields[3]
     ses_value = float(fields[1])
     # If this atom is not in the complex surface, or its SES has changed more than epsilon
-    if atomName not in bound_ses.keys() or (ses_value - float(bound_ses[atomName]) > env.epsilon_area_change):
+    if atomName not in bound_ses.keys() or abs(ses_value - float(bound_ses[atomName])) > env.epsilon_area_change:
       iface_atoms.add(atomName)
   # Now we will create new output files for the vertices and triangulations
   # But first we need to read in the vertices
@@ -128,7 +135,7 @@ for filename_root in filename_roots[0:-1]:
     atomName = fields[9]
     if atomName in iface_atoms: 
       vertices_in_interface_old_indexing.add(ix_counter)
-    old_vertices.append(fields[0:6]+[fields[9]])
+    old_vertices.append(fields)
     ix_counter += 1
 
   # Now read the lines that correspond to the face triangles.
@@ -143,8 +150,13 @@ for filename_root in filename_roots[0:-1]:
     fields = line.split()
     # the tree is defined by the three coordinates
     T = map(lambda field: int(field), fields[0:3])
-    # Is any of the three vertices in T in the interface? 
-    is_vertex_in_interface = len(filter(lambda x: x in vertices_in_interface_old_indexing, T)) > 0
+    is_vertex_in_interface = False
+    if not env.require_all_three_vertices:
+      # Is any of the three vertices in T in the interface? 
+      is_vertex_in_interface = len(filter(lambda x: x in vertices_in_interface_old_indexing, T)) > 0
+    else: 
+      # Are all three vertices in T in the interface: 
+      is_vertex_in_interface = len(filter(lambda x: x in vertices_in_interface_old_indexing, T)) > 2
     if is_vertex_in_interface: 
       for v in T:
         if v not in tris_old_ix_dict:
@@ -164,7 +176,7 @@ for filename_root in filename_roots[0:-1]:
   # Create the new vertices
   out_file_vertices = open(hierarchOutputDirectory+filename_root+".vert", 'w')
   for vertex_ix in range(1,new_vertex_ix):
-    new_vertex = [`vertex_ix`]+old_vertices[map_from_new_to_old[vertex_ix]]
+    new_vertex = old_vertices[map_from_new_to_old[vertex_ix]]
     out_file_vertices.write(' '.join(new_vertex)+'\n')
   # Now create a new set with the new triangles
   tris_new_ix_set = Set()
@@ -176,7 +188,7 @@ for filename_root in filename_roots[0:-1]:
   # Finally, write the new triangles to the output file.
   out_file_face = open(hierarchOutputDirectory+filename_root+".face", 'w')
   for tri in tris_new_ix_set:
-    out_file_face.write(' '.join(str(x) for x in tri)+'\n')
+    out_file_face.write(' '.join(str(x) for x in tri)+" 0 0\n")
     
   ####### Separate the vertices into sets of connected components
   # We use the information in the triangulation.
@@ -230,14 +242,24 @@ for filename_root in filename_roots[0:-1]:
       output_vertfilename = "{}{}{:02d}.vert".format(hierarchOutputDirectory,filename_root,tree_count)
       out_file_vertices = open(output_vertfilename, 'w')
       sorted_tree = sorted(new_tree)
+      # The triangles of this connected component will have a new indexing, which means we need a new map. 
+      map_from_new_ix_to_this_connected_component_ix = {}
+      ix_this_connected_component = 1
+      for ix_this_connected_component in range(1, len(sorted_tree)+1):
+        map_from_new_ix_to_this_connected_component_ix[sorted_tree[ix_this_connected_component-1]] = ix_this_connected_component
+      
       for vertex_ix in sorted_tree:
-        new_vertex = [`vertex_ix`]+old_vertices[map_from_new_to_old[vertex_ix]]
+        new_vertex = old_vertices[map_from_new_to_old[vertex_ix]]
         out_file_vertices.write(' '.join(new_vertex)+'\n')
-      # Now write out the faces. 
+      # Now write out the faces.
       output_facefilename = "{}{}{:02d}.face".format(hierarchOutputDirectory,filename_root,tree_count)
       out_file_face = open(output_facefilename, 'w')
       for tri in triangles_for_this_component:
-        outline = "{:d} {:d} {:d}".format(tri[0],tri[1],tri[2])
+        tri_ix_for_this_component = []
+        tri_ix_for_this_component.append(map_from_new_ix_to_this_connected_component_ix[tri[0]])
+        tri_ix_for_this_component.append(map_from_new_ix_to_this_connected_component_ix[tri[1]])
+        tri_ix_for_this_component.append(map_from_new_ix_to_this_connected_component_ix[tri[2]])
+        outline = "{:d} {:d} {:d} 0 0".format(tri_ix_for_this_component[0], tri_ix_for_this_component[1], tri_ix_for_this_component[2])
         out_file_face.write(outline+'\n')
       tree_count += 1
 

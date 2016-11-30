@@ -32,7 +32,13 @@ else
   cp pdb_database/$directory/$pdb* tmp_master
 fi
 cd tmp_master
-gunzip *
+for file in *
+do
+  gunzip $file
+  fileroot="${file%.pdb.gz}"
+  reduce $fileroot.pdb > $fileroot\_H.pdb
+  rm $fileroot.pdb
+done
 cd ..
 ./compute_msms_buried_surface_area.py tmp_master/*
 rm tmp_master/*

@@ -36,14 +36,15 @@ def output_pdb_as_xyzrn(pdbfilename, xyzrnfilename):
     resname = residue.get_resname()
     atomtype = name[0]
     color = 'Green'
-    if atomtype == 'O':
-      color = 'Red'
-    if atomtype == 'H' :
-      if name in polarHydrogens[resname]:
-        color = 'Blue' # Polar hydrogens
-    coords = "{:.06f} {:.06f} {:.06f}".format(atom.get_coord()[0],atom.get_coord()[1],atom.get_coord()[2])
-    full_id = "{}_{:d}_{}_{}_{}".format(atom.get_full_id()[2],\
-              atom.get_full_id()[3][1], resname, name, color)
-
-    outfile.write(coords+" "+radii[atomtype]+" 1 "+full_id+"\n")
+    if atomtype in radii and resname in polarHydrogens:
+      if atomtype == 'O':
+        color = 'Red'
+      if atomtype == 'H' :
+        if name in polarHydrogens[resname]:
+          color = 'Blue' # Polar hydrogens
+      coords = "{:.06f} {:.06f} {:.06f}".format(atom.get_coord()[0],atom.get_coord()[1],atom.get_coord()[2])
+      full_id = "{}_{:d}_{}_{}_{}".format(atom.get_full_id()[2],\
+                atom.get_full_id()[3][1], resname, name, color)
+  
+      outfile.write(coords+" "+radii[atomtype]+" 1 "+full_id+"\n")
 
