@@ -10,6 +10,7 @@ from config import env
 from sets import Set
 from Bio.PDB import * 
 import numpy as np
+import shutil
 from glob import glob
 from scipy.spatial import distance
 
@@ -50,12 +51,17 @@ def get_area_triangle_set(triangles, vertices):
     total_area += tri_area(a,b,c)
   return total_area
 
+if "-includeH" in sys.argv:
+  sys.argv.remove("-includeH")
+  env.ignore_hydrogens = False
 allPDB_files = list(sys.argv[1:])
 if len(allPDB_files) < 2:
   print "Compute and output the interface surfaces of a set of PDB chains."
   print "Currently this program receives each chain for a PDB as a separate input."
   print "It is assumed that all chains belong to the same PDB file with the same PDB id."
-  print "Usage: "+sys.argv[0]+" {chain1} {chain2} [chain3]... "
+  print "[-includeH]: hydrogens are included and will be colored depending on whether they are polar (blue) or not(green).\
+            If this option is not set then nitrogens are painted blue and hydrogens are ignored."
+  print "Usage: "+sys.argv[0]+" [-includeH] {chain1} {chain2} [chain3]... "
   sys.exit(1)
 
 # The name of the PDB is taken only from the first file. 
@@ -67,6 +73,10 @@ complex_file = env.tmpDirectory+basename+"_complex.pdb"
 hierarchOutputDirectory = env.outputDirectory+"/"+(basename[1:3]).lower()+"/"+basename+"/"
 if not os.path.exists(hierarchOutputDirectory):
   os.makedirs(hierarchOutputDirectory)
+
+# Copy all pdb files to destination directory
+for pdb_file in allPDB_files:
+  shutil.copy(pdb_file, hierarchOutputDirectory)
 
 mergePDBs(allPDB_files, complex_file)
 

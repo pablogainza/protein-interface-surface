@@ -1,4 +1,5 @@
 from Bio.PDB import * 
+from config import env 
 radii = {}
 radii['N'] = "1.540000"
 radii['O'] = "1.400000"
@@ -39,7 +40,9 @@ def output_pdb_as_xyzrn(pdbfilename, xyzrnfilename):
     if atomtype in radii and resname in polarHydrogens:
       if atomtype == 'O':
         color = 'Red'
-      if atomtype == 'H' :
+      if atomtype == 'N':
+        color = 'Blue'
+      if atomtype == 'H' and not env.ignore_hydrogens :
         if name in polarHydrogens[resname]:
           color = 'Blue' # Polar hydrogens
       coords = "{:.06f} {:.06f} {:.06f}".format(atom.get_coord()[0],atom.get_coord()[1],atom.get_coord()[2])
