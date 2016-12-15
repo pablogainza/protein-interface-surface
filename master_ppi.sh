@@ -63,4 +63,4 @@ else
 fi
 echo ./compute_msms_buried_surface_area.py $OPTIONS tmp_master/*
 ./compute_msms_buried_surface_area.py $OPTIONS tmp_master/*
-#rm tmp_master/*
+rm tmp_master/*
