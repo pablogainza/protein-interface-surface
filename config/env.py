@@ -1,6 +1,7 @@
 import os
 tmpDirectory = "tmp/"
 outputDirectory = "output/"
+outputDatabaseJsonFile = outputDirectory+"db.json"
 msms_bin= ""
 if 'MSMS_BIN' in os.environ:
    msms_bin = os.environ['MSMS_BIN']

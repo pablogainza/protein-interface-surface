@@ -13,6 +13,7 @@ import numpy as np
 import shutil
 from glob import glob
 from scipy.spatial import distance
+import json
 
 # Recursive function to find all connected components in a surface (to separate interfaces). 
 #   In order to keep the stack small, the tree works breadth-first
@@ -73,6 +74,10 @@ complex_file = env.tmpDirectory+basename+"_complex.pdb"
 hierarchOutputDirectory = env.outputDirectory+"/"+(basename[1:3]).lower()+"/"+basename+"/"
 if not os.path.exists(hierarchOutputDirectory):
   os.makedirs(hierarchOutputDirectory)
+else:
+  # Erase all files in the destination directory and remake the directory
+  shutil.rmtree(hierarchOutputDirectory)
+  os.makedirs(hierarchOutputDirectory)
 
 # Copy all pdb files to destination directory
 for pdb_file in allPDB_files:
@@ -98,8 +103,8 @@ for filename_root in filename_roots:
   print env.msms_bin+" "+`args`
   p2 = Popen(args, stdout=PIPE, stderr=PIPE)
   stdout, stderr = p2.communicate()
-  print stdout 
-  print stderr
+  #print stdout 
+  #print stderr
 # Now compute the buried interface 
 # We compute the buried interface by reading first the area file of unbound and bound complexes. 
 #  We will have a dictionary with each atom name and its Solvent excluded surface (SES)
@@ -183,11 +188,6 @@ for filename_root in filename_roots[0:-1]:
       new_vertex_ix += 1
   count_vertices_in_full_interface = new_vertex_ix
   # We now have the all the new indices and a map between them
-  # Create the new vertices
-  out_file_vertices = open(hierarchOutputDirectory+filename_root+".vert", 'w')
-  for vertex_ix in range(1,new_vertex_ix):
-    new_vertex = old_vertices[map_from_new_to_old[vertex_ix]]
-    out_file_vertices.write(' '.join(new_vertex)+'\n')
   # Now create a new set with the new triangles
   tris_new_ix_set = Set()
   for key in tris_old_ix_dict.keys():
@@ -195,10 +195,6 @@ for filename_root in filename_roots[0:-1]:
     for old_tri in old_tris:
       new_tri = tuple(map(lambda v: map_from_old_to_new[v], old_tri))
       tris_new_ix_set.add(new_tri)
-  # Finally, write the new triangles to the output file.
-  out_file_face = open(hierarchOutputDirectory+filename_root+".face", 'w')
-  for tri in tris_new_ix_set:
-    out_file_face.write(' '.join(str(x) for x in tri)+" 0 0\n")
     
   ####### Separate the vertices into sets of connected components
   # We use the information in the triangulation.
@@ -219,12 +215,17 @@ for filename_root in filename_roots[0:-1]:
     graph[z].add(x)
     graph[z].add(y)
 
+  # At this point we open the db.json file; erase any entry with filename_root as its header.
+  feedsjson = open(env.outputDatabaseJsonFile)
+  feeds = json.load(feedsjson)
+  feedsjson.close()
+  feeds['surface_db'][filename_root] = []
+
   # Find the connected components. 
   # Add all elements to disconnected components. 
   disconnected_components = set()
   for v in graph.keys():
     disconnected_components.add(v)
-  forest = []
   # Go through the disconnected components until they all belong to a tree. 
   tree_count = 0
   while len(disconnected_components) > 0: 
@@ -246,10 +247,10 @@ for filename_root in filename_roots[0:-1]:
     area = get_area_triangle_set(triangles_for_this_component, vertex_coords)
 
     if area > env.minimum_ppi_area:
-      print "Area of this interface (Angs^2): " + `area`
+      output_vertfilename = "{}{}{:02d}.vert".format(hierarchOutputDirectory,filename_root,tree_count)
+      print "Area of "+output_vertfilename+" interface (Angs^2):" + `area`
       # Write a vert file and a face file for the interface in this tree
       # Create the new vertices
-      output_vertfilename = "{}{}{:02d}.vert".format(hierarchOutputDirectory,filename_root,tree_count)
       out_file_vertices = open(output_vertfilename, 'w')
       sorted_tree = sorted(new_tree)
       # The triangles of this connected component will have a new indexing, which means we need a new map. 
@@ -271,5 +272,18 @@ for filename_root in filename_roots[0:-1]:
         tri_ix_for_this_component.append(map_from_new_ix_to_this_connected_component_ix[tri[2]])
         outline = "{:d} {:d} {:d} 0 0".format(tri_ix_for_this_component[0], tri_ix_for_this_component[1], tri_ix_for_this_component[2])
         out_file_face.write(outline+'\n')
+
       tree_count += 1
+      entry = {}
+      if env.ignore_hydrogens :
+        entry['pdb'] = hierarchOutputDirectory+filename_root+".pdb"
+      else:
+        entry['pdb'] = hierarchOutputDirectory+filename_root+"_H.pdb"
+      entry['vertices'] = output_vertfilename
+      feeds['surface_db'][filename_root].append(entry)
+
+  feedsjson = open(env.outputDatabaseJsonFile, 'w')
+  json.dump(feeds, feedsjson,sort_keys=True, indent=2, separators=(',', ': '))
+  feedsjson.close()
+
 
