@@ -99,7 +99,7 @@ for pdbfile in allPDB_files:
 for filename_root in filename_roots:
   FNULL = open(os.devnull, 'w')
   full_filename = xyzrn_filename_template.format(filename_root)
-  args= [env.msms_bin, "-if",full_filename,"-of",full_filename, "-af", full_filename]
+  args= [env.msms_bin, "-density", "1.0", "-hdensity", "1.0", "-probe", "1.5", "-if",full_filename,"-of",full_filename, "-af", full_filename]
   print env.msms_bin+" "+`args`
   p2 = Popen(args, stdout=PIPE, stderr=PIPE)
   stdout, stderr = p2.communicate()

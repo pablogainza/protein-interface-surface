@@ -41,15 +41,15 @@ do
   if (( $INCLUDE_H == 1 ))
   then
     fileroot="${file%.pdb.gz}"
-    reduce -Trim $fileroot.pdb > $fileroot\_noH.pdb
-    reduce $fileroot\_noH.pdb > $fileroot\_H.pdb
+    reduce -Trim $fileroot.pdb > $fileroot\_noH.pdb 2>/dev/null
+    reduce $fileroot\_noH.pdb > $fileroot\_H.pdb 2>/dev/null
     echo "Fileroot = $fileroot"
     rm $fileroot.pdb
     rm $fileroot\_noH.pdb
   else
     # Remove hydrogens in case structure has tehm 
     fileroot="${file%.pdb.gz}"
-    reduce -Trim $fileroot.pdb > $fileroot\_noH.pdb
+    reduce -Trim $fileroot.pdb > $fileroot\_noH.pdb 2>/dev/null
     mv $fileroot\_noH.pdb $fileroot.pdb
   fi
 
@@ -64,3 +64,4 @@ fi
 echo ./compute_msms_buried_surface_area.py $OPTIONS tmp_master/*
 ./compute_msms_buried_surface_area.py $OPTIONS tmp_master/*
 rm tmp_master/*
+rm tmp/*
